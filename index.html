@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>畑の木管理（航空写真）</title>
+<!-- スマホでホーム画面に追加したときアプリのように開くための設定 -->
+<meta name="theme-color" content="#2f7d4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="畑の木管理">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%232f7d4f'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%232f7d4f'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle'%3E%F0%9F%8C%B3%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f4f6f3; --panel:#ffffff; --line:#dfe5dc; --ink:#243027;
+    --muted:#6b7a6e; --accent:#2f7d4f; --accent-d:#225e3b;
+    --warn:#c9772a; --danger:#c0432f; --chip:#eef3ec;
+    --shadow:0 2px 10px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+    background:var(--bg);color:var(--ink);display:flex;flex-direction:column;height:100vh;overflow:hidden;
+  }
+  header{
+    background:var(--accent);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    box-shadow:var(--shadow);z-index:10;
+  }
+  header h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.02em}
+  header .spacer{flex:1}
+  .btn{
+    border:0;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;
+    background:rgba(255,255,255,.15);color:#fff;font-weight:600;display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{background:rgba(255,255,255,.28)}
+  .btn.solid{background:#fff;color:var(--accent-d)}
+  .btn.solid:hover{background:#eafff0}
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.5)}
+  /* ---- field selector (dropdown) ---- */
+  #fieldBar{display:flex;gap:8px;align-items:center;background:var(--accent-d);padding:8px 12px;box-shadow:var(--shadow);z-index:9;flex-wrap:wrap}
+  #fieldBar .fbl{color:#cfe9d8;font-size:12px;font-weight:600}
+  #fieldSelect{font-size:14px;font-weight:700;padding:7px 10px;border-radius:8px;border:0;background:var(--bg);color:var(--ink);min-width:150px;cursor:pointer}
+  #fieldBar .fmeta{color:#cfe9d8;font-size:12px}
+  #fieldBar .spacer{flex:1}
+  #fieldBar button{border:0;border-radius:7px;padding:7px 10px;font-size:12px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.15);color:#eafff0}
+  #fieldBar button:hover{background:rgba(255,255,255,.28)}
+  main{flex:1;display:flex;min-height:0}
+  /* ---- map ---- */
+  .map-wrap{flex:1;position:relative;overflow:hidden;background:#e9efe6;min-width:0}
+  #stage{position:absolute;inset:0;cursor:grab;}
+  #stage.placing{cursor:crosshair}
+  #stage.dragging{cursor:grabbing}
+  #canvas{position:absolute;transform-origin:0 0;}
+  #photo{display:block;max-width:none;user-select:none;-webkit-user-drag:none;pointer-events:none}
+  #lineLayer{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+  #lineLayer .ln-hit{stroke:transparent;stroke-width:18;cursor:pointer;pointer-events:stroke}
+  #lineLayer .ln{stroke-width:6;stroke-linecap:round;pointer-events:none}
+  #lineLayer .ln.sel{stroke-dasharray:2 8;animation:lndash 1s linear infinite}
+  #lineLayer .ln-end{cursor:grab;pointer-events:all}
+  #lineLayer .ln-lbl{font-size:13px;font-weight:700;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.6);stroke-width:3px;pointer-events:none}
+  @keyframes lndash{to{stroke-dashoffset:-20}}
+  .no-photo{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:var(--muted);text-align:center;gap:14px;padding:20px;
+  }
+  .no-photo svg{opacity:.5}
+  .marker{
+    position:absolute;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;
+    border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer;user-select:none;
+  }
+  .marker.sel{outline:3px solid #ffd24a;outline-offset:1px;z-index:5}
+  .marker .lbl{position:absolute;top:-16px;font-size:10px;background:rgba(0,0,0,.55);color:#fff;
+    padding:0 4px;border-radius:4px;white-space:nowrap;pointer-events:none}
+  /* map toolbar */
+  .map-tools{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:8px;z-index:6}
+  .map-tools .tbtn{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;width:auto;padding:8px 12px;
+    font-size:13px;cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ink)
+  }
+  .map-tools .tbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .zoom-tools{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;z-index:6}
+  .zoom-tools button{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
+    font-size:18px;cursor:pointer;box-shadow:var(--shadow);color:var(--ink)}
+  .legend{position:absolute;right:12px;top:12px;background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font-size:11px;box-shadow:var(--shadow);z-index:6;line-height:1.7}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+  /* ---- side panel ---- */
+  aside{width:340px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .tabs{display:flex;border-bottom:1px solid var(--line)}
+  .tabs button{flex:1;border:0;background:none;padding:11px 8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent}
+  .tabs button.active{color:var(--accent-d);border-bottom-color:var(--accent)}
+  .panel-body{flex:1;min-height:0;overflow:auto;padding:14px;-webkit-overflow-scrolling:touch}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:30px 10px;line-height:1.7}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
+  .field input,.field select,.field textarea{
+    width:100%;border:1px solid var(--line);border-radius:7px;padding:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink)
+  }
+  .field textarea{resize:vertical;min-height:54px}
+  .row2{display:flex;gap:8px}
+  .row2>*{flex:1}
+  .tree-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .tree-head .dot{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0}
+  .tree-head h2{margin:0;font-size:18px}
+  .tree-head .sub{font-size:12px;color:var(--muted)}
+  hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+  .sec-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px}
+  .log{border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:8px;background:#fafcf9}
+  .log .top{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px}
+  .log .type{font-weight:700;font-size:13px}
+  .log .date{font-size:11px;color:var(--muted)}
+  .log .note{font-size:12px;color:#3a4a3d;white-space:pre-wrap;word-break:break-word}
+  .log .del{border:0;background:none;color:var(--danger);cursor:pointer;font-size:11px;padding:0}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .chip{background:var(--chip);border:1px solid var(--line);border-radius:14px;padding:4px 10px;font-size:12px;cursor:pointer}
+  .chip:hover{background:#e2ece0}
+  .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .chip .cx{color:var(--danger);margin-left:5px;font-size:11px;cursor:pointer}
+  .btn-row{display:flex;gap:8px;margin-top:6px}
+  .pbtn{flex:1;border:0;border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff}
+  .pbtn:hover{background:var(--accent-d)}
+  .pbtn.sub{background:#eef3ec;color:var(--ink)}
+  .pbtn.danger{background:#fbeae7;color:var(--danger)}
+  /* list */
+  .row-group{margin-bottom:14px}
+  .row-group h3{font-size:13px;margin:0 0 6px;display:flex;align-items:center;gap:6px}
+  .row-group h3 .count{font-size:11px;color:var(--muted);font-weight:400}
+  .tree-item{display:flex;align-items:center;gap:9px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;margin-bottom:5px;cursor:pointer;background:#fff}
+  .tree-item:hover{background:#f3f8f1}
+  .tree-item.sel{border-color:var(--accent);background:#eef7ee}
+  .tree-item .dot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;flex-shrink:0}
+  .tree-item .meta{flex:1;min-width:0}
+  .tree-item .meta .n{font-size:13px;font-weight:600}
+  .tree-item .meta .s{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stat{display:flex;gap:10px;margin-bottom:12px}
+  .stat .box{flex:1;background:var(--chip);border-radius:8px;padding:9px;text-align:center}
+  .stat .box .v{font-size:20px;font-weight:700;color:var(--accent-d)}
+  .stat .box .k{font-size:11px;color:var(--muted)}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5}
+  input[type=file]{display:none}
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);
+    background:#243027;color:#fff;padding:11px 16px;border-radius:10px;font-size:13px;max-width:90%;
+    box-shadow:0 6px 22px rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:.25s;z-index:100;line-height:1.5}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.warn{background:#8a3b1f}
+  #saveBadge{font-size:11px;color:rgba(255,255,255,.85);display:flex;align-items:center;gap:5px}
+  #saveBadge.err{color:#ffd24a}
+  /* モバイル: 記録パネルをボトムシート化（タップで下からせり上がる） */
+  #sheetHandle{display:none}
+  @media(max-width:760px){
+    main{flex-direction:column}
+    .map-wrap{height:100%}
+    /* ボトムシート: 高さで開閉（折りたたみ=ハンドルのみ／展開=画面の約8割） */
+    aside{
+      width:100%;position:fixed;left:0;right:0;bottom:0;top:auto;
+      height:52px;                      /* 通常はハンドルだけ */
+      overflow:hidden;
+      border-left:0;border-top:1px solid var(--line);border-radius:16px 16px 0 0;
+      background:var(--panel);z-index:30;box-shadow:0 -6px 22px rgba(0,0,0,.22);
+      transition:height .28s cubic-bezier(.4,0,.2,1);
+      display:flex;flex-direction:column;
+    }
+    aside.expanded{ height:85vh; height:85dvh; }   /* dvhでアドレスバー分も考慮 */
+    #sheetHandle{
+      display:flex;align-items:center;justify-content:center;gap:8px;height:52px;flex-shrink:0;
+      cursor:pointer;position:relative;border-radius:16px 16px 0 0;user-select:none;
+    }
+    #sheetHandle::before{content:"";position:absolute;top:8px;width:42px;height:5px;border-radius:3px;background:#cdd6cc}
+    #sheetHandle .sheetLabel{margin-top:9px;font-size:13px;font-weight:700;color:var(--accent-d)}
+    .tabs{flex-shrink:0}
+    .panel-body{overscroll-behavior:contain;touch-action:pan-y}
+    .zoom-tools{bottom:62px}            /* ハンドルと重ならないように */
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌳 畑の木管理</h1>
+  <span id="saveBadge">💾 保存済み</span>
+  <div class="spacer"></div>
+  <button class="btn" id="btnLoadPhoto">📷 航空写真</button>
+  <button class="btn ghost" id="btnNotion">📥 ログ取込(CSV)</button>
+  <button class="btn ghost" id="btnMD">📝 MD出力</button>
+  <button class="btn ghost" id="btnCSV">📊 CSV出力</button>
+  <button class="btn ghost" id="btnExport">⬇ 書き出し</button>
+  <button class="btn ghost" id="btnImport">⬆ 読み込み</button>
+  <input type="file" id="filePhoto" accept="image/*">
+  <input type="file" id="fileImport" accept="application/json,.json">
+  <input type="file" id="fileNotion" accept=".csv,text/csv,application/json,.json">
+</header>
+<div id="fieldBar">
+  <span class="fbl">畑:</span>
+  <select id="fieldSelect"></select>
+  <span class="fmeta" id="fieldMeta"></span>
+  <span class="spacer"></span>
+  <button id="btnAddField">＋ 畑を追加</button>
+  <button id="btnRenameField">✎ 名前</button>
+  <button id="btnDelField">🗑 削除</button>
+</div>
+
+<main>
+  <div class="map-wrap">
+    <div class="map-tools">
+      <button class="tbtn" id="toolPlace">➕ 木を配置</button>
+      <button class="tbtn" id="toolLine">📏 ジョイント線</button>
+      <button class="tbtn" id="toolMove">✋ 移動/閲覧</button>
+    </div>
+    <div class="legend">
+      <div><b>作業からの経過</b></div>
+      <div><i style="background:#2f7d4f"></i>7日以内</div>
+      <div><i style="background:#c9a52a"></i>30日以内</div>
+      <div><i style="background:#c0432f"></i>30日超</div>
+      <div><i style="background:#9aa39b"></i>記録なし</div>
+    </div>
+    <div class="zoom-tools">
+      <button id="zoomIn">＋</button>
+      <button id="zoomOut">－</button>
+      <button id="zoomFit" title="全体表示">⤢</button>
+    </div>
+    <div id="stage">
+      <div id="canvas">
+        <img id="photo" alt="">
+        <svg id="lineLayer" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="no-photo" id="noPhoto">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        <div>
+          畑の航空写真をアップロードしてください<br>
+          <small>ドローン写真・GoogleマップのスクショなどでOK</small>
+        </div>
+        <button class="btn solid" id="btnLoadPhoto2" style="color:#225e3b">写真を選ぶ</button>
+      </div>
+    </div>
+  </div>
+
+  <aside>
+    <div id="sheetHandle"><span class="sheetLabel">▲ 記録・一覧を開く</span></div>
+    <div class="tabs">
+      <button data-tab="tree" class="active">木の詳細</button>
+      <button data-tab="list">一覧（列）</button>
+      <button data-tab="log">作業ログ</button>
+    </div>
+    <div class="panel-body" id="tabTree">
+      <div class="empty" id="treeEmpty">
+        左の地図で木を選ぶと、ここに詳細と作業記録が表示されます。<br><br>
+        「➕ 木を配置」モードにして写真上をクリックすると、新しい木を追加できます。
+      </div>
+      <div id="treeDetail" style="display:none"></div>
+    </div>
+    <div class="panel-body" id="tabList" style="display:none"></div>
+    <div class="panel-body" id="tabLog" style="display:none"></div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script>
+const DEFAULT_WORK_TYPES = ["剪定","摘蕾","摘花","摘果","防除","施肥","除草","袋がけ","収穫","誘引","観察"];
+const LS_KEY = "orchard_manager_v1";
+
+// 畑(field)ごとに trees / view / photo / logs を持つ。workTypes は全畑で共通。
+// farmLogs は「全ての畑」に関わる作業/散布（畑に紐づかない記録）。
+let state = { fields:[], activeFieldId:null, workTypes:[...DEFAULT_WORK_TYPES], farmLogs:[] };
+let mode = "move";          // "move" | "place" | "line"
+let selectedId = null;
+let selectedType = "tree";  // "tree" | "line"
+let activeTab = "tree";
+let pendingType = DEFAULT_WORK_TYPES[0];
+let editTypes = false;      // 作業種類の編集モード
+
+// アクティブな畑を返すアクセサ
+function AF(){ return state.fields.find(f=>f.id===state.activeFieldId) || state.fields[0]; }
+function newField(name){ return { id:"f"+Date.now()+Math.random().toString(36).slice(2,5),
+  name:name, trees:[], lines:[], view:{scale:1,tx:0,ty:0}, photo:undefined, logs:[] }; }
+
+/* ---------- persistence ----------
+   木・列・記録などの軽いデータ → localStorage
+   航空写真（大きい）→ IndexedDB（容量が桁違いに大きい）に分離して保存 */
+const IDB_DB="orchard_manager", IDB_STORE="kv";
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open(IDB_DB,1);
+  r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE);
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function idbSet(k,v){ const db=await idb(); return new Promise((res,rej)=>{
+  const tx=db.transaction(IDB_STORE,"readwrite"); tx.objectStore(IDB_STORE).put(v,k);
+  tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function idbGet(k){ const db=await idb(); return new Promise((res,rej)=>{
+  const tx=db.transaction(IDB_STORE,"readonly"); const rq=tx.objectStore(IDB_STORE).get(k);
+  rq.onsuccess=()=>res(rq.result); rq.onerror=()=>rej(rq.error); }); }
+
+let storageOK=true;          // localStorage が使えるか
+function probeStorage(){
+  try{ localStorage.setItem("__probe__","1"); localStorage.removeItem("__probe__"); storageOK=true; }
+  catch(e){ storageOK=false; }
+  return storageOK;
+}
+function load(){
+  if(probeStorage()){
+    try{ const s = JSON.parse(localStorage.getItem(LS_KEY)); if(s){ state = Object.assign(state,s); } }catch(e){}
+  }
+  migrate();
+  if(!Array.isArray(state.workTypes) || !state.workTypes.length) state.workTypes=[...DEFAULT_WORK_TYPES];
+}
+function migrate(){
+  // 旧形式（単一畑: state.trees/view/photo）→ fields[] へ変換
+  if(!Array.isArray(state.fields) || !state.fields.length){
+    const f={ id:"f"+Date.now(), name:"畑1",
+              trees: Array.isArray(state.trees)?state.trees:[],
+              view: state.view||{scale:1,tx:0,ty:0},
+              photo: state.photo!=null?state.photo:undefined };
+    state.fields=[f]; state.activeFieldId=f.id;
+  }
+  if(!state.activeFieldId || !state.fields.find(f=>f.id===state.activeFieldId))
+    state.activeFieldId=state.fields[0].id;
+  state.fields.forEach(f=>{ if(!f.view) f.view={scale:1,tx:0,ty:0}; if(!Array.isArray(f.trees)) f.trees=[]; if(!Array.isArray(f.lines)) f.lines=[]; if(!Array.isArray(f.logs)) f.logs=[]; });
+  if(!Array.isArray(state.farmLogs)) state.farmLogs=[];
+  delete state.trees; delete state.view; delete state.photo;   // 旧トップレベルを掃除
+}
+
+let saveTimer=null, warnedStorage=false;
+function save(){             // 連続呼び出しはまとめて1回だけ書き込む（パン/ズーム対策）
+  setBadge("saving");
+  clearTimeout(saveTimer); saveTimer=setTimeout(doSave, 350);
+}
+function doSave(){           // 写真以外の軽いデータだけ localStorage へ（各畑の photo は除外）
+  if(!storageOK){ setBadge("err"); return; }
+  try{
+    const slim={...state, fields: state.fields.map(({photo, ...rest})=>rest)};
+    localStorage.setItem(LS_KEY, JSON.stringify(slim));
+    setBadge("ok");
+  }catch(e){
+    console.warn("保存に失敗", e); storageOK=false; setBadge("err");
+    if(!warnedStorage){ warnedStorage=true;
+      toast("⚠ 自動保存ができません。ブラウザのプライベートモードか保存容量が上限の可能性があります。「⬇ 書き出し」でバックアップしてください。", true); }
+  }
+}
+function photoKey(id){ return "photo:"+id; }
+function savePhoto(f){       // 写真は畑ごとに IndexedDB へ
+  f=f||AF(); if(!f || f.photo==null) return;
+  setBadge("saving");
+  idbSet(photoKey(f.id), f.photo).then(()=>setBadge("ok")).catch(e=>{
+    console.warn("写真の保存に失敗", e); setBadge("err");
+    toast("⚠ 写真を保存できませんでした。表示は使えますが、再読み込み後に消える場合があります。", true);
+  });
+}
+// アクティブな畑の写真をIDBから読み込む（未取得なら）
+async function ensureActivePhoto(){
+  const f=AF(); if(!f || f.photo!==undefined) return;
+  try{
+    let p=await idbGet(photoKey(f.id));
+    if(p==null && f.id===state.fields[0].id){       // 旧バージョンの単一写真キーから移行
+      const legacy=await idbGet("photo");
+      if(legacy!=null){ p=legacy; f.photo=p; savePhoto(f); }
+    }
+    f.photo = p!=null ? p : null;
+  }catch(e){ f.photo=null; }
+}
+
+/* 保存状態バッジ & 通知 */
+let badgeTimer=null;
+function setBadge(st){
+  const b=document.getElementById("saveBadge"); if(!b) return;
+  b.classList.toggle("err", st==="err");
+  clearTimeout(badgeTimer);
+  if(st==="saving"){ b.textContent="💾 保存中…"; }
+  else if(st==="err"){ b.textContent="⚠ 未保存"; }
+  else { badgeTimer=setTimeout(()=>{ b.textContent="✓ 保存済み"; },120); }
+}
+let toastTimer=null;
+function toast(msg, warn){
+  const t=document.getElementById("toast"); if(!t) return;
+  t.textContent=msg; t.className=(warn?"warn ":"")+"show";
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.className=t.className.replace("show","").trim(), warn?7000:3000);
+}
+
+/* ---------- elements ---------- */
+const $ = s=>document.querySelector(s);
+const stage=$("#stage"), canvas=$("#canvas"), photo=$("#photo"), noPhoto=$("#noPhoto"), lineLayer=$("#lineLayer");
+const SVGNS="http://www.w3.org/2000/svg";
+
+/* ---------- photo ---------- */
+$("#btnLoadPhoto").onclick = ()=>$("#filePhoto").click();
+$("#btnLoadPhoto2").onclick = ()=>$("#filePhoto").click();
+$("#filePhoto").onchange = e=>{
+  const f=e.target.files[0]; if(!f) return;
+  if(!f.type.startsWith("image/")){ alert("画像ファイルを選んでください"); e.target.value=""; return; }
+  const r=new FileReader();
+  r.onload=ev=>{ downscale(ev.target.result, 6000, 0.92, dataUrl=>{
+    AF().photo=dataUrl; renderPhoto(); fit(); savePhoto();
+  }); };
+  r.onerror=()=>alert("写真を読み込めませんでした。別の画像でお試しください。");
+  r.readAsDataURL(f);
+  e.target.value="";
+};
+// 画像は長辺6000pxまで縮小して高画質JPEGで保存（IndexedDBへ）
+function downscale(src, maxDim, quality, cb){
+  const img=new Image();
+  img.onload=()=>{
+    let {width:w, height:h}=img;
+    const scale=Math.min(1, maxDim/Math.max(w,h));
+    w=Math.round(w*scale); h=Math.round(h*scale);
+    const c=document.createElement("canvas"); c.width=w; c.height=h;
+    c.getContext("2d").drawImage(img,0,0,w,h);
+    try{ cb(c.toDataURL("image/jpeg", quality)); }
+    catch(err){ cb(src); }   // 変換に失敗したら元画像のまま
+  };
+  img.onerror=()=>cb(src);
+  img.src=src;
+}
+function renderPhoto(){
+  const src=AF()&&AF().photo;
+  if(src){ photo.src=src; photo.style.display="block"; noPhoto.style.display="none"; }
+  else { photo.removeAttribute("src"); photo.style.display="none"; noPhoto.style.display="flex"; }
+}
+
+/* ---------- view / pan / zoom ---------- */
+function applyView(){
+  const v=AF().view;
+  canvas.style.transform=`translate(${v.tx}px,${v.ty}px) scale(${v.scale})`;
+}
+function fit(){
+  if(!photo.naturalWidth){ photo.addEventListener("load",fit,{once:true}); return; }
+  const w=stage.clientWidth, h=stage.clientHeight;
+  const s=Math.min(w/photo.naturalWidth, h/photo.naturalHeight)*0.95 || 1;
+  const v=AF().view;
+  v.scale=s;
+  v.tx=(w-photo.naturalWidth*s)/2;
+  v.ty=(h-photo.naturalHeight*s)/2;
+  applyView(); renderMarkers(); save();
+}
+$("#zoomFit").onclick=fit;
+$("#zoomIn").onclick=()=>zoomAt(1.25);
+$("#zoomOut").onclick=()=>zoomAt(0.8);
+function zoomAt(f, cx, cy){
+  const v=AF().view; const r=stage.getBoundingClientRect();
+  cx = cx==null ? r.width/2 : cx; cy = cy==null ? r.height/2 : cy;
+  const ns=Math.min(Math.max(v.scale*f,0.05),12);
+  v.tx = cx-(cx-v.tx)*(ns/v.scale);
+  v.ty = cy-(cy-v.ty)*(ns/v.scale);
+  v.scale=ns; applyView(); save();
+}
+stage.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const r=stage.getBoundingClientRect();
+  zoomAt(e.deltaY<0?1.12:0.89, e.clientX-r.left, e.clientY-r.top);
+},{passive:false});
+
+/* pan + place + line via pointer */
+let panning=false, moved=false, sx,sy, startTx,startTy;
+let dragTree=null;
+let drawing=null;           // {x1,y1,x2,y2} ジョイント線を描画中
+let dragEnd=null;           // {line, which:1|2} 端点ドラッグ中
+stage.addEventListener("pointerdown",e=>{
+  if(e.target.closest(".marker")) return;       // marker handles its own
+  if(e.target.closest(".ln-end")) return;       // endpoint handle handles its own
+  if(mode==="place" && AF().photo){ addTreeAt(e); return; }
+  if(mode==="line" && AF().photo){               // 線の描画開始
+    const p=clientToImg(e); drawing={x1:p.x,y1:p.y,x2:p.x,y2:p.y};
+    stage.setPointerCapture(e.pointerId); renderLines(); return;
+  }
+  if(e.target.closest(".ln-hit")) return;        // クリックで線選択（描画モード以外）
+  panning=true; moved=false; sx=e.clientX; sy=e.clientY;
+  startTx=AF().view.tx; startTy=AF().view.ty;
+  stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener("pointermove",e=>{
+  if(dragEnd){ const p=clientToImg(e);
+    if(dragEnd.which===1){ dragEnd.line.x1=p.x; dragEnd.line.y1=p.y; }
+    else { dragEnd.line.x2=p.x; dragEnd.line.y2=p.y; } renderLines(); return; }
+  if(drawing){ const p=clientToImg(e); drawing.x2=p.x; drawing.y2=p.y; renderLines(); return; }
+  if(dragTree){ moveTreeTo(dragTree,e); return; }
+  if(!panning) return;
+  const dx=e.clientX-sx, dy=e.clientY-sy;
+  if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
+  AF().view.tx=startTx+dx; AF().view.ty=startTy+dy; applyView();
+});
+stage.addEventListener("pointerup",e=>{
+  if(dragEnd){ dragEnd=null; save(); renderLines(); }
+  if(drawing){ finishDrawLine(); drawing=null; return; }
+  if(panning){ panning=false; stage.classList.remove("dragging"); if(moved) save(); }
+  if(dragTree){ dragTree=null; save(); }
+});
+
+/* convert client coords -> image natural coords (px) */
+function clientToImg(e){
+  const r=stage.getBoundingClientRect(); const v=AF().view;
+  const x=(e.clientX-r.left-v.tx)/v.scale;
+  const y=(e.clientY-r.top-v.ty)/v.scale;
+  return {x,y};
+}
+
+/* ---------- trees ---------- */
+function colorFor(t){
+  const last=lastDate(t);
+  if(!last) return "#9aa39b";
+  const days=(Date.now()-new Date(last).getTime())/864e5;
+  if(days<=7) return "#2f7d4f";
+  if(days<=30) return "#c9a52a";
+  return "#c0432f";
+}
+function lastDate(t){
+  if(!t.records||!t.records.length) return null;
+  return t.records.map(r=>r.date).sort().slice(-1)[0];
+}
+function nextNumInRow(row){
+  const n=AF().trees.filter(t=>t.row===row).map(t=>+t.num||0);
+  return (n.length?Math.max(...n):0)+1;
+}
+function lastRow(){
+  const tr=AF().trees;
+  return tr.length ? tr[tr.length-1].row : "A";
+}
+function addTreeAt(e){
+  const p=clientToImg(e);
+  const row = prompt("列名を入力（例: A, B, 1列目）", lastRow()||"A");
+  if(row===null) return;
+  const num = prompt("番号を入力", String(nextNumInRow(row)));
+  if(num===null) return;
+  const t={ id:"t"+Date.now()+Math.random().toString(36).slice(2,6),
+            row:row.trim()||"A", num:(num.trim()||String(nextNumInRow(row))),
+            variety:"", x:p.x, y:p.y, records:[] };
+  AF().trees.push(t); save(); selectedId=t.id; selectedType="tree"; renderMarkers(); renderPanel(); openSheetIfMobile();
+}
+function moveTreeTo(t,e){ const p=clientToImg(e); t.x=p.x; t.y=p.y; renderMarkers(); }
+
+function renderMarkers(){
+  canvas.querySelectorAll(".marker").forEach(m=>m.remove());
+  AF().trees.forEach(t=>{
+    const m=document.createElement("div");
+    m.className="marker"+(t.id===selectedId?" sel":"");
+    m.style.left=t.x+"px"; m.style.top=t.y+"px"; m.style.background=colorFor(t);
+    m.textContent=t.num;
+    const lbl=document.createElement("span"); lbl.className="lbl"; lbl.textContent=t.row; m.appendChild(lbl);
+    let mDown=false,mMoved=false,downX,downY;
+    m.addEventListener("pointerdown",ev=>{
+      ev.stopPropagation(); mDown=true; mMoved=false; downX=ev.clientX; downY=ev.clientY;
+      m.setPointerCapture(ev.pointerId);
+      if(mode==="move") dragTree=t;
+    });
+    m.addEventListener("pointermove",ev=>{
+      if(!mDown) return;
+      if(Math.abs(ev.clientX-downX)+Math.abs(ev.clientY-downY)>4) mMoved=true;
+    });
+    m.addEventListener("pointerup",ev=>{
+      mDown=false;
+      if(dragTree){ dragTree=null; save(); }
+      if(!mMoved){ selectedId=t.id; selectedType="tree"; activeTab="tree"; renderTabs(); renderMarkers(); renderPanel(); openSheetIfMobile(); }
+    });
+    canvas.appendChild(m);
+  });
+  renderLines();
+}
+
+/* ---------- ジョイント線（線で登録） ---------- */
+function lineLen(l){ return Math.hypot((l.x2-l.x1),(l.y2-l.y1)); }
+function nextLabel(){
+  const n=AF().lines.length; return "J"+(n+1);   // J1, J2…
+}
+function finishDrawLine(){
+  const l=drawing;
+  if(!l || lineLen(l) < 8){ renderLines(); return; }   // 短すぎる線は無視
+  const row = prompt("ジョイント列の名前（例: ジョイントA, 東1列）", "ジョイント"+(AF().lines.length+1));
+  if(row===null){ renderLines(); return; }
+  const line={ id:"L"+Date.now()+Math.random().toString(36).slice(2,6),
+    row:row.trim()||("ジョイント"+(AF().lines.length+1)), label:nextLabel(),
+    variety:"", x1:l.x1, y1:l.y1, x2:l.x2, y2:l.y2, records:[] };
+  AF().lines.push(line); save();
+  selectedId=line.id; selectedType="line"; activeTab="tree";
+  renderTabs(); renderLines(); renderPanel(); openSheetIfMobile();
+}
+function renderLines(){
+  if(!lineLayer) return;
+  if(photo.naturalWidth){ lineLayer.setAttribute("width",photo.naturalWidth); lineLayer.setAttribute("height",photo.naturalHeight); }
+  while(lineLayer.firstChild) lineLayer.removeChild(lineLayer.firstChild);
+  AF().lines.forEach(l=>{
+    const sel = (selectedType==="line" && l.id===selectedId);
+    const col = colorFor(l);
+    // 当たり判定用の太い透明線
+    const hit=document.createElementNS(SVGNS,"line");
+    hit.setAttribute("class","ln-hit");
+    hit.setAttribute("x1",l.x1); hit.setAttribute("y1",l.y1); hit.setAttribute("x2",l.x2); hit.setAttribute("y2",l.y2);
+    hit.addEventListener("pointerup",ev=>{ ev.stopPropagation();
+      selectedId=l.id; selectedType="line"; activeTab="tree"; renderTabs(); renderLines(); renderPanel(); openSheetIfMobile(); });
+    lineLayer.appendChild(hit);
+    // 見える線
+    const ln=document.createElementNS(SVGNS,"line");
+    ln.setAttribute("class","ln"+(sel?" sel":"")); ln.setAttribute("stroke",col);
+    ln.setAttribute("x1",l.x1); ln.setAttribute("y1",l.y1); ln.setAttribute("x2",l.x2); ln.setAttribute("y2",l.y2);
+    lineLayer.appendChild(ln);
+    // ラベル（中点）
+    const tx=(l.x1+l.x2)/2, ty=(l.y1+l.y2)/2;
+    const txt=document.createElementNS(SVGNS,"text");
+    txt.setAttribute("class","ln-lbl"); txt.setAttribute("x",tx); txt.setAttribute("y",ty-8);
+    txt.setAttribute("text-anchor","middle"); txt.textContent=l.row;
+    lineLayer.appendChild(txt);
+    // 選択中は端点ハンドル（移動モードでドラッグ可）
+    if(sel){
+      [[l.x1,l.y1,1],[l.x2,l.y2,2]].forEach(([hx,hy,which])=>{
+        const c=document.createElementNS(SVGNS,"circle");
+        c.setAttribute("class","ln-end"); c.setAttribute("cx",hx); c.setAttribute("cy",hy);
+        c.setAttribute("r",9); c.setAttribute("fill","#fff"); c.setAttribute("stroke",col); c.setAttribute("stroke-width",3);
+        c.addEventListener("pointerdown",ev=>{ ev.stopPropagation();
+          if(mode!=="move") return; dragEnd={line:l,which}; try{ stage.setPointerCapture(ev.pointerId); }catch(_){} });
+        lineLayer.appendChild(c);
+      });
+    }
+  });
+  // 描画中のプレビュー
+  if(drawing){
+    const pv=document.createElementNS(SVGNS,"line");
+    pv.setAttribute("class","ln"); pv.setAttribute("stroke","#ffd24a"); pv.setAttribute("stroke-dasharray","6 6");
+    pv.setAttribute("x1",drawing.x1); pv.setAttribute("y1",drawing.y1); pv.setAttribute("x2",drawing.x2); pv.setAttribute("y2",drawing.y2);
+    lineLayer.appendChild(pv);
+  }
+}
+
+/* ---------- panel: tree detail ---------- */
+function el(html){ const d=document.createElement("div"); d.innerHTML=html.trim(); return d.firstElementChild; }
+function fmtDate(d){ return d? d : ""; }
+function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+
+function renderPanel(){
+  const isLine = selectedType==="line";
+  const t = isLine ? AF().lines.find(x=>x.id===selectedId) : AF().trees.find(x=>x.id===selectedId);
+  const detail=$("#treeDetail"), empty=$("#treeEmpty");
+  if(!t){ detail.style.display="none"; empty.style.display="block"; return; }
+  empty.style.display="none"; detail.style.display="block";
+  const recs=[...(t.records||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  detail.innerHTML="";
+  const headHtml = isLine ? `
+      <div class="tree-head">
+        <div class="dot" style="background:${colorFor(t)};border-radius:6px">📏</div>
+        <div>
+          <h2>${escapeHtml(t.row)}</h2>
+          <div class="sub">ジョイント線（長さ ${Math.round(lineLen(t))}px）・ 記録 ${ (t.records||[]).length } 件</div>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>列名</label><input id="fRow" value="${escapeHtml(t.row)}"></div>
+        <div class="field"><label>ラベル</label><input id="fNum" value="${escapeHtml(t.label||"")}"></div>
+      </div>
+      <div class="field"><label>品種・メモ</label><input id="fVar" value="${escapeHtml(t.variety||"")}" placeholder="例: 幸水 / ジョイント仕立て"></div>` : `
+      <div class="tree-head">
+        <div class="dot" style="background:${colorFor(t)}">${t.num}</div>
+        <div>
+          <h2>${t.row} 列 ${t.num} 番</h2>
+          <div class="sub">${t.variety?("品種: "+t.variety):"品種未設定"} ・ 記録 ${ (t.records||[]).length } 件</div>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>列</label><input id="fRow" value="${t.row}"></div>
+        <div class="field"><label>番号</label><input id="fNum" value="${t.num}"></div>
+      </div>
+      <div class="field"><label>品種・メモ</label><input id="fVar" value="${t.variety||""}" placeholder="例: 幸水 / 平成21年植え"></div>`;
+  detail.appendChild(el(`
+    <div>
+      ${headHtml}
+      ${isLine?`<div class="hint">💡 線を選択中は端点の○をドラッグで「ここからここまで」を微調整できます（移動/閲覧モード）。</div>`:""}
+      <hr>
+      <p class="sec-title">作業を記録</p>
+      <div class="chips" id="typeChips"></div>
+      <div class="row2">
+        <div class="field"><label>日付</label><input type="date" id="fDate" value="${todayStr()}"></div>
+        <div class="field"><label>作業の種類</label><input id="fType" value="${pendingType}"></div>
+      </div>
+      <div class="field"><label>メモ（任意）</label><textarea id="fNote" placeholder="例: 上枝を3本切除。来年の主枝を残した。"></textarea></div>
+      <div class="btn-row"><button class="pbtn" id="addRec">＋ この作業を記録</button></div>
+      <hr>
+      <p class="sec-title">作業履歴（${recs.length}件）</p>
+      <div id="recList"></div>
+      <hr>
+      <div class="btn-row"><button class="pbtn danger" id="delTree">${isLine?"このジョイント線を削除":"この木を削除"}</button></div>
+    </div>
+  `));
+
+  // chips（作業の種類：追加・削除できる）
+  const chips=detail.querySelector("#typeChips");
+  state.workTypes.forEach(w=>{
+    const c=el(`<span class="chip${w===pendingType?" on":""}">${escapeHtml(w)}${editTypes?' <b class="cx">✕</b>':''}</span>`);
+    if(editTypes){
+      c.querySelector(".cx").onclick=ev=>{ ev.stopPropagation();
+        if(confirm(`作業の種類「${w}」を一覧から削除しますか？\n（記録済みの履歴はそのまま残ります）`)){
+          state.workTypes=state.workTypes.filter(x=>x!==w);
+          if(pendingType===w) pendingType=state.workTypes[0]||"";
+          save(); renderPanel(); } };
+    } else {
+      c.onclick=()=>{ pendingType=w; detail.querySelector("#fType").value=w;
+        chips.querySelectorAll(".chip").forEach(x=>x.classList.remove("on")); c.classList.add("on"); };
+    }
+    chips.appendChild(c);
+  });
+  // ＋追加チップ
+  const addc=el(`<span class="chip" style="border-style:dashed;color:var(--accent-d)">＋ 種類を追加</span>`);
+  addc.onclick=()=>{
+    const name=prompt("追加する作業の種類名を入力（例: 灌水, 草刈り）");
+    if(name===null) return; const n=name.trim(); if(!n) return;
+    if(state.workTypes.includes(n)){ pendingType=n; renderPanel(); return; }
+    state.workTypes.push(n); pendingType=n; save(); renderPanel();
+  };
+  chips.appendChild(addc);
+  // 編集トグル
+  const editc=el(`<span class="chip" style="background:none;border:0;color:var(--muted)">${editTypes?"完了":"✎ 編集"}</span>`);
+  editc.onclick=()=>{ editTypes=!editTypes; renderPanel(); };
+  chips.appendChild(editc);
+
+  // record list
+  const rl=detail.querySelector("#recList");
+  if(!recs.length){ rl.innerHTML=`<div class="empty" style="padding:14px">まだ記録がありません</div>`; }
+  recs.forEach(r=>{
+    const item=el(`<div class="log">
+      <div class="top"><span class="type">${r.type}</span>
+        <span><span class="date">${r.date}</span> <button class="del">削除</button></span></div>
+      ${r.note?`<div class="note">${escapeHtml(r.note)}</div>`:""}
+    </div>`);
+    item.querySelector(".del").onclick=()=>{
+      t.records=t.records.filter(x=>x.id!==r.id); save(); renderMarkers(); renderPanel();
+    };
+    rl.appendChild(item);
+  });
+
+  // bindings
+  const bindMeta=()=>{ t.row=detail.querySelector("#fRow").value.trim()||t.row;
+    if(isLine) t.label=detail.querySelector("#fNum").value.trim()||t.label;
+    else t.num=detail.querySelector("#fNum").value.trim()||t.num;
+    t.variety=detail.querySelector("#fVar").value; save(); renderMarkers(); };
+  detail.querySelector("#fRow").onchange=bindMeta;
+  detail.querySelector("#fNum").onchange=bindMeta;
+  detail.querySelector("#fVar").onchange=bindMeta;
+
+  detail.querySelector("#addRec").onclick=()=>{
+    const date=detail.querySelector("#fDate").value||todayStr();
+    const type=detail.querySelector("#fType").value.trim(); if(!type){ alert("作業の種類を入力してください"); return; }
+    const note=detail.querySelector("#fNote").value.trim();
+    t.records=t.records||[]; t.records.push({id:"r"+Date.now(),created:new Date().toISOString(),date,type,note});
+    save(); renderMarkers(); renderPanel();
+  };
+  detail.querySelector("#delTree").onclick=()=>{
+    if(isLine){
+      if(!confirm(`ジョイント線「${t.row}」を削除しますか？（作業記録も消えます）`)) return;
+      AF().lines=AF().lines.filter(x=>x.id!==t.id);
+    } else {
+      if(!confirm(`${t.row}列${t.num}番 を削除しますか？（作業記録も消えます）`)) return;
+      AF().trees=AF().trees.filter(x=>x.id!==t.id);
+    }
+    selectedId=null; save(); renderMarkers(); renderPanel();
+  };
+}
+function escapeHtml(s){ return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ---------- panel: list ---------- */
+function centerOn(x,y){ const v=AF().view, r=stage.getBoundingClientRect();
+  v.tx=r.width/2 - x*v.scale; v.ty=r.height/2 - y*v.scale; applyView(); save(); }
+function renderList(){
+  const box=$("#tabList");
+  const trees=AF().trees, lines=AF().lines||[];
+  box.innerHTML="";
+  if(!trees.length && !lines.length){
+    box.innerHTML=`<div class="empty">「${escapeHtml(AF().name)}」にはまだ木もジョイント線も登録されていません。<br>地図で「➕ 木を配置」または「📏 ジョイント線」で追加してください。</div>`;
+    return;
+  }
+  const recTotal=trees.reduce((s,t)=>s+(t.records?t.records.length:0),0)+lines.reduce((s,t)=>s+(t.records?t.records.length:0),0);
+  const rows={};
+  trees.forEach(t=>{ (rows[t.row]=rows[t.row]||[]).push(t); });
+  box.appendChild(el(`<div class="stat">
+    <div class="box"><div class="v">${trees.length}</div><div class="k">木の本数</div></div>
+    <div class="box"><div class="v">${lines.length}</div><div class="k">ジョイント線</div></div>
+    <div class="box"><div class="v">${recTotal}</div><div class="k">作業記録</div></div>
+  </div>`));
+  const noRec=trees.filter(t=>!lastDate(t)).length;
+  if(noRec) box.appendChild(el(`<div class="hint">⚠ 記録が一度もない木が ${noRec} 本あります（灰色マーカー）。</div>`));
+  // 木（列ごと）
+  Object.keys(rows).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).forEach(row=>{
+    const list=rows[row].sort((a,b)=>(+a.num||0)-(+b.num||0) || (""+a.num).localeCompare(""+b.num));
+    const g=el(`<div class="row-group"><h3>📍 ${escapeHtml(row)} 列 <span class="count">${list.length}本</span></h3></div>`);
+    list.forEach(t=>{
+      const last=lastDate(t);
+      const item=el(`<div class="tree-item${(selectedType==="tree"&&t.id===selectedId)?" sel":""}">
+        <div class="dot" style="background:${colorFor(t)}">${t.num}</div>
+        <div class="meta"><div class="n">${t.num} 番 ${t.variety?`<span style="color:#6b7a6e;font-weight:400">/ ${escapeHtml(t.variety)}</span>`:""}</div>
+        <div class="s">${last?("最終作業 "+last):"記録なし"} ・ ${ (t.records||[]).length }件</div></div>
+      </div>`);
+      item.onclick=()=>{ selectedId=t.id; selectedType="tree"; activeTab="tree"; renderTabs(); renderMarkers(); renderPanel(); centerOn(t.x,t.y); };
+      g.appendChild(item);
+    });
+    box.appendChild(g);
+  });
+  // ジョイント線
+  if(lines.length){
+    const g=el(`<div class="row-group"><h3>📏 ジョイント線 <span class="count">${lines.length}本</span></h3></div>`);
+    [...lines].sort((a,b)=>(""+a.row).localeCompare(""+b.row,undefined,{numeric:true})).forEach(l=>{
+      const last=lastDate(l);
+      const item=el(`<div class="tree-item${(selectedType==="line"&&l.id===selectedId)?" sel":""}">
+        <div class="dot" style="background:${colorFor(l)};border-radius:6px">📏</div>
+        <div class="meta"><div class="n">${escapeHtml(l.row)} ${l.variety?`<span style="color:#6b7a6e;font-weight:400">/ ${escapeHtml(l.variety)}</span>`:""}</div>
+        <div class="s">${last?("最終作業 "+last):"記録なし"} ・ ${ (l.records||[]).length }件</div></div>
+      </div>`);
+      item.onclick=()=>{ selectedId=l.id; selectedType="line"; activeTab="tree"; renderTabs(); renderMarkers(); renderPanel(); centerOn((l.x1+l.x2)/2,(l.y1+l.y2)/2); };
+      g.appendChild(item);
+    });
+    box.appendChild(g);
+  }
+}
+
+/* ---------- tabs ---------- */
+function renderTabs(){
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
+  $("#tabTree").style.display = activeTab==="tree"?"block":"none";
+  $("#tabList").style.display = activeTab==="list"?"block":"none";
+  $("#tabLog").style.display  = activeTab==="log"?"block":"none";
+  if(activeTab==="tree") renderPanel();
+  else if(activeTab==="list") renderList();
+  else renderLog();
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{ activeTab=b.dataset.tab; renderTabs(); });
+
+/* ---------- モバイル: 記録パネルのボトムシート開閉 ---------- */
+function isMobile(){ return window.matchMedia("(max-width:760px)").matches; }
+function setSheetLabel(){ const lb=document.querySelector("#sheetHandle .sheetLabel"); if(!lb) return;
+  lb.textContent = document.querySelector("aside").classList.contains("expanded") ? "▼ 閉じてマップを見る" : "▲ 記録・一覧を開く"; }
+function openSheetIfMobile(){ if(isMobile()){ document.querySelector("aside").classList.add("expanded"); setSheetLabel(); } }
+$("#sheetHandle").onclick=()=>{ document.querySelector("aside").classList.toggle("expanded"); setSheetLabel(); };
+
+/* ---------- 作業ログ / 防除履歴（畑・日単位） ---------- */
+const LOG_TYPES = ["防除","施肥","作業","観察","収穫","その他"];
+function mergedLogs(){   // この畑のログ + 全圃場ログ を結合
+  const f=AF();
+  const own=(f.logs||[]).map(l=>({...l, _scope:"field"}));
+  const farm=(state.farmLogs||[]).map(l=>({...l, _scope:"farm"}));
+  return own.concat(farm).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+}
+function renderLog(){
+  const box=$("#tabLog");
+  const logs=mergedLogs();
+  box.innerHTML="";
+  box.appendChild(el(`
+    <div>
+      <p class="sec-title">作業ログを追加（${escapeHtml(AF().name)}）</p>
+      <div class="row2">
+        <div class="field"><label>日付</label><input type="date" id="lgDate" value="${todayStr()}"></div>
+        <div class="field"><label>種類</label><input id="lgType" value="防除" list="lgTypeList"></div>
+      </div>
+      <datalist id="lgTypeList">${LOG_TYPES.map(t=>`<option value="${t}">`).join("")}</datalist>
+      <div class="row2">
+        <div class="field"><label>薬剤・資材</label><input id="lgChem" placeholder="例: ICボルドー"></div>
+        <div class="field"><label>総量/希釈</label><input id="lgAmt" placeholder="例: 500L / 1000倍"></div>
+      </div>
+      <div class="field"><label>内容・備考</label><textarea id="lgNote" placeholder="作業内容や気づき"></textarea></div>
+      <div class="row2">
+        <div class="field"><label>担当者</label><input id="lgWorker" placeholder="任意"></div>
+        <div class="field"><label>対象</label>
+          <select id="lgScope"><option value="field">この畑のみ</option><option value="farm">全ての畑</option></select></div>
+      </div>
+      <div class="btn-row"><button class="pbtn" id="lgAdd">＋ ログを記録</button></div>
+      <hr>
+      <p class="sec-title">履歴（${logs.length}件）<span style="font-weight:400;color:var(--muted)">／この畑＋全圃場</span></p>
+      <div id="lgList"></div>
+    </div>
+  `));
+  const list=box.querySelector("#lgList");
+  if(!logs.length) list.innerHTML=`<div class="empty" style="padding:14px">まだログがありません。<br>上で記録するか、ヘッダーの「🔗 Notion取込」で取り込めます。</div>`;
+  logs.forEach(l=>{
+    const amt=l.amount?` ・ ${escapeHtml(l.amount)}`:"";
+    const chem=l.chemical?`<div class="note">💊 ${escapeHtml(l.chemical)}${amt}</div>`:"";
+    const extra=[l.worker?("👤"+l.worker):"", l.weather?("☁"+l.weather):""].filter(Boolean).join("　");
+    const item=el(`<div class="log">
+      <div class="top">
+        <span class="type">${escapeHtml(l.type||"作業")} <span style="font-size:10px;font-weight:600;color:#fff;background:${l._scope==="farm"?"#6b7a6e":"var(--accent)"};border-radius:8px;padding:1px 6px">${l._scope==="farm"?"全圃場":"この畑"}</span></span>
+        <span><span class="date">${l.date||""}</span> ${l.src==="notion"?'<span style="font-size:10px;color:#888">⟳Notion</span>':""} <button class="del">削除</button></span>
+      </div>
+      ${chem}
+      ${l.note?`<div class="note">${escapeHtml(l.note)}</div>`:""}
+      ${extra?`<div class="note" style="color:var(--muted);font-size:11px">${extra}</div>`:""}
+    </div>`);
+    item.querySelector(".del").onclick=()=>{
+      if(l._scope==="farm") state.farmLogs=state.farmLogs.filter(x=>x.id!==l.id);
+      else AF().logs=AF().logs.filter(x=>x.id!==l.id);
+      save(); renderFieldTabs(); renderLog();
+    };
+    list.appendChild(item);
+  });
+  // add handler
+  box.querySelector("#lgAdd").onclick=()=>{
+    const entry={ id:"lg"+Date.now()+Math.random().toString(36).slice(2,5),
+      date: box.querySelector("#lgDate").value||todayStr(),
+      type: box.querySelector("#lgType").value.trim()||"作業",
+      chemical: box.querySelector("#lgChem").value.trim(),
+      amount: box.querySelector("#lgAmt").value.trim(),
+      note: box.querySelector("#lgNote").value.trim(),
+      worker: box.querySelector("#lgWorker").value.trim(),
+      src:"manual" };
+    if(box.querySelector("#lgScope").value==="farm") state.farmLogs.push(entry);
+    else AF().logs.push(entry);
+    save(); renderFieldTabs(); renderLog();
+  };
+}
+
+/* ---------- mode toggle ---------- */
+function setMode(m){
+  mode=m;
+  $("#toolPlace").classList.toggle("active",m==="place");
+  $("#toolLine").classList.toggle("active",m==="line");
+  $("#toolMove").classList.toggle("active",m==="move");
+  stage.classList.toggle("placing",m==="place"||m==="line");
+}
+$("#toolPlace").onclick=()=>setMode("place");
+$("#toolLine").onclick=()=>setMode("line");
+$("#toolMove").onclick=()=>setMode("move");
+
+/* ---------- 畑セレクタ（ドロップダウン） ---------- */
+function renderFieldTabs(){
+  const sel=$("#fieldSelect"); if(!sel) return;
+  sel.innerHTML="";
+  state.fields.forEach(f=>{
+    const o=document.createElement("option"); o.value=f.id;
+    o.textContent=`${f.name}（木${f.trees.length}・ログ${(f.logs||[]).length}）`;
+    if(f.id===state.activeFieldId) o.selected=true;
+    sel.appendChild(o);
+  });
+  const meta=$("#fieldMeta");
+  if(meta) meta.textContent=`畑 ${state.fields.length} 枚`;
+}
+$("#fieldSelect").onchange=e=>switchField(e.target.value);
+$("#btnAddField").onclick=()=>addField();
+$("#btnRenameField").onclick=()=>renameField(AF());
+$("#btnDelField").onclick=()=>deleteField(AF());
+
+async function showActiveField(){    // 写真読込→描画（畑切替時に呼ぶ）
+  await ensureActivePhoto();
+  renderPhoto(); applyView(); renderMarkers();
+  if(AF().photo){ const v=AF().view; if(v.scale===1 && v.tx===0 && v.ty===0) fit(); }
+}
+function switchField(id){
+  if(id===state.activeFieldId){ renderFieldTabs(); return; }
+  state.activeFieldId=id; selectedId=null; editTypes=false; save();
+  renderFieldTabs(); renderTabs(); showActiveField();
+}
+function addField(){
+  const name=prompt("追加する畑の名前", "畑"+(state.fields.length+1));
+  if(name===null) return;
+  const f=newField(name.trim()||("畑"+(state.fields.length+1)));
+  f.photo=null;                       // 新規は写真なし（未読込ではなく空）
+  state.fields.push(f); state.activeFieldId=f.id; selectedId=null;
+  save(); renderFieldTabs(); renderTabs(); showActiveField();
+}
+function renameField(f){
+  const name=prompt("畑の名前を変更", f.name); if(name===null) return;
+  f.name=name.trim()||f.name; save(); renderFieldTabs(); renderTabs();
+}
+function deleteField(f){
+  if(state.fields.length<=1){ alert("最後の1枚の畑は削除できません。"); return; }
+  if(!confirm(`畑「${f.name}」を削除しますか？\nこの畑の木・作業記録・作業ログ・航空写真がすべて消えます。`)) return;
+  idbSet(photoKey(f.id), null).catch(()=>{});
+  state.fields=state.fields.filter(x=>x.id!==f.id);
+  if(state.activeFieldId===f.id) state.activeFieldId=state.fields[0].id;
+  selectedId=null; save(); renderFieldTabs(); renderTabs(); showActiveField();
+}
+
+/* ---------- export / import （全畑＋写真をまるごとバックアップ） ---------- */
+$("#btnExport").onclick=async()=>{
+  for(const f of state.fields){ if(f.photo===undefined){ try{ f.photo=await idbGet(photoKey(f.id))??null; }catch(e){ f.photo=null; } } }
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="畑の木管理_"+todayStr()+".json"; a.click(); URL.revokeObjectURL(a.href);
+  toast("全データを書き出しました（畑 "+state.fields.length+"枚）");
+};
+$("#btnImport").onclick=()=>$("#fileImport").click();
+$("#fileImport").onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{ try{ let s=JSON.parse(ev.target.result);
+    // 旧形式（単一畑）も読めるように畑構造へ正規化
+    if(!Array.isArray(s.fields)){
+      if(!s.trees) throw 0;
+      s={ fields:[{id:"f"+Date.now(),name:"畑1",trees:s.trees,view:s.view||{scale:1,tx:0,ty:0},photo:s.photo!=null?s.photo:null}],
+          activeFieldId:null, workTypes:s.workTypes };
+    }
+    if(!confirm("現在のデータを読み込んだ内容で置き換えます。よろしいですか？")) return;
+    state=Object.assign({fields:[],activeFieldId:null,workTypes:[...DEFAULT_WORK_TYPES]},s);
+    migrate();
+    if(!Array.isArray(state.workTypes)||!state.workTypes.length) state.workTypes=[...DEFAULT_WORK_TYPES];
+    save();
+    state.fields.forEach(fl=>{ if(fl.photo!=null) savePhoto(fl); });  // 写真をIDBへ
+    renderFieldTabs(); renderTabs(); showActiveField();
+    toast("読み込みました（畑 "+state.fields.length+"枚）");
+  }catch(err){ alert("ファイルを読み込めませんでした"); } };
+  r.readAsText(f); e.target.value="";
+};
+
+/* ---------- CSV出力（AI分析・データ蓄積向けの縦持ち形式） ----------
+   1行 = 1作業記録。木の識別情報（列・番号・品種・座標）を各行に持たせ、
+   行だけで意味が通る tidy（ロング）形式。Excel対応のためUTF-8 BOM付き。 */
+function recCreated(r){
+  if(r.created) return r.created;
+  const m=/^r(\d{10,})/.exec(r.id||""); return m? new Date(+m[1]).toISOString() : "";
+}
+function csvCell(v){ v=(v==null?"":String(v)); return /[",\r\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+$("#btnCSV").onclick=()=>{
+  const rows=[];
+  state.fields.forEach(fl=>{
+    (fl.trees||[]).forEach(t=>(t.records||[]).forEach(r=>rows.push({fl,kind:"木",ent:t,r})));
+    (fl.lines||[]).forEach(l=>(l.records||[]).forEach(r=>rows.push({fl,kind:"ジョイント線",ent:l,r})));
+  });
+  if(!rows.length){ toast("まだ作業記録がありません。記録を追加してから出力してください。", true); return; }
+  rows.sort((a,b)=>
+    (""+a.fl.name).localeCompare(""+b.fl.name,undefined,{numeric:true})
+    || (""+a.ent.row).localeCompare(""+b.ent.row,undefined,{numeric:true})
+    || ((+a.ent.num||0)-(+b.ent.num||0))
+    || (a.r.date||"").localeCompare(b.r.date||""));
+  const header=["畑","畑ID","種別","記録ID","記録日時","対象ID","列","番号/ラベル","品種","画像X","画像Y","画像X2","画像Y2","作業日","作業種類","メモ"];
+  const lines=[header];
+  rows.forEach(({fl,kind,ent,r})=>{
+    const isL = kind==="ジョイント線";
+    lines.push([
+      fl.name, fl.id, kind, r.id, recCreated(r), ent.id, ent.row,
+      isL?(ent.label||""):ent.num, ent.variety||"",
+      Math.round(isL?ent.x1:ent.x), Math.round(isL?ent.y1:ent.y),
+      isL?Math.round(ent.x2):"", isL?Math.round(ent.y2):"",
+      r.date||"", r.type||"", r.note||""
+    ]);
+  });
+  const csv=lines.map(row=>row.map(csvCell).join(",")).join("\r\n");
+  const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="作業記録_"+todayStr()+".csv"; a.click(); URL.revokeObjectURL(a.href);
+  toast("CSVを書き出しました（"+rows.length+"件）");
+};
+
+/* ---------- Markdown出力（AI/RAG・知識ベース参照向け） ----------
+   YAMLフロントマター＋見出し階層＋表で構造化。Obsidian等の知識フォルダにそのまま投入できる。 */
+function mdEsc(s){ return String(s==null?"":s).replace(/\|/g,"\\|").replace(/\r?\n/g," ").trim(); }
+function buildMarkdown(){
+  const fields=state.fields;
+  const treeCount=fields.reduce((s,f)=>s+f.trees.length,0);
+  const lineCount=fields.reduce((s,f)=>s+(f.lines||[]).length,0);
+  const recCount=fields.reduce((s,f)=>s
+    + f.trees.reduce((a,t)=>a+(t.records?t.records.length:0),0)
+    + (f.lines||[]).reduce((a,l)=>a+(l.records?l.records.length:0),0),0);
+  const allLogs=[];
+  (state.farmLogs||[]).forEach(l=>allLogs.push(Object.assign({},l,{_target:"全圃場"})));
+  fields.forEach(f=>(f.logs||[]).forEach(l=>allLogs.push(Object.assign({},l,{_target:f.name}))));
+  allLogs.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const today=todayStr();
+  const recsDesc=t=>[...(t.records||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  let md="";
+  md+="---\n";
+  md+="type: 梨畑-作業知識ベース\n";
+  md+="source: 畑の木管理アプリ\n";
+  md+=`生成日: ${today}\n`;
+  md+=`畑数: ${fields.length}\n`;
+  md+=`木の本数: ${treeCount}\n`;
+  md+=`ジョイント線数: ${lineCount}\n`;
+  md+=`個体別作業記録数: ${recCount}\n`;
+  md+=`農薬散布労務ログ数: ${allLogs.length}\n`;
+  md+=`畑一覧: [${fields.map(f=>f.name).join(", ")}]\n`;
+  md+="tags: [梨, 農薬, 防除, 栽培, 労務, 畑管理, ジョイント栽培]\n";
+  md+="---\n\n";
+
+  md+="# 梨畑 作業知識ベース\n\n";
+  md+=`> 「畑の木管理」アプリから自動生成（${today}）。農薬・栽培・労務の記録をAI参照用に構造化したファイル。\n\n`;
+
+  md+="## サマリー\n";
+  md+=`- 畑数: ${fields.length}（${fields.map(f=>f.name).join("、")||"なし"}）\n`;
+  md+=`- 木: ${treeCount}本 / ジョイント線: ${lineCount}本\n`;
+  md+=`- 個体別の作業記録: ${recCount}件\n`;
+  md+=`- 農薬散布・作業ログ: ${allLogs.length}件\n\n`;
+
+  md+="## 農薬散布・作業ログ（全畑横断・新しい順）\n\n";
+  if(allLogs.length){
+    md+="| 日付 | 対象 | 種類 | 薬剤・資材 | 総量/希釈 | 担当 | 備考 | 出典 |\n";
+    md+="|---|---|---|---|---|---|---|---|\n";
+    allLogs.forEach(l=>{ md+=`| ${mdEsc(l.date)} | ${mdEsc(l._target)} | ${mdEsc(l.type)} | ${mdEsc(l.chemical)||"-"} | ${mdEsc(l.amount)||"-"} | ${mdEsc(l.worker)||"-"} | ${mdEsc(l.note)||"-"} | ${mdEsc(l.src)||"-"} |\n`; });
+    md+="\n";
+  } else md+="（記録なし）\n\n";
+
+  md+="## 畑別データ\n\n";
+  fields.forEach(f=>{
+    md+=`### ${f.name}\n`;
+    md+=`- 木: ${f.trees.length}本 / ジョイント線: ${(f.lines||[]).length}本 / 作業ログ: ${(f.logs||[]).length}件\n\n`;
+
+    md+="#### 木の作業記録\n\n";
+    if(!f.trees.length) md+="（木の登録なし）\n\n";
+    else {
+      const rows={}; f.trees.forEach(t=>{(rows[t.row]=rows[t.row]||[]).push(t);});
+      Object.keys(rows).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).forEach(row=>{
+        const list=rows[row].sort((a,b)=>(+a.num||0)-(+b.num||0)||(""+a.num).localeCompare(""+b.num));
+        md+=`##### ${mdEsc(row)}列\n`;
+        const noRec=[];
+        list.forEach(t=>{
+          const recs=recsDesc(t);
+          if(recs.length){
+            md+=`- **${mdEsc(t.num)}番**${t.variety?`（${mdEsc(t.variety)}）`:""}\n`;
+            recs.forEach(r=>{ md+=`    - ${mdEsc(r.date)} 【${mdEsc(r.type)}】${mdEsc(r.note)}\n`; });
+          } else noRec.push(mdEsc(t.num)+(t.variety?`(${mdEsc(t.variety)})`:""));
+        });
+        if(noRec.length) md+=`- 記録なしの木: ${noRec.join("、")}\n`;
+        md+="\n";
+      });
+    }
+
+    if((f.lines||[]).length){
+      md+="#### ジョイント線\n\n";
+      [...f.lines].sort((a,b)=>(""+a.row).localeCompare(""+b.row,undefined,{numeric:true})).forEach(l=>{
+        md+=`##### ${mdEsc(l.row)}${l.variety?`（${mdEsc(l.variety)}）`:""}\n`;
+        const recs=recsDesc(l);
+        if(recs.length) recs.forEach(r=>{ md+=`- ${mdEsc(r.date)} 【${mdEsc(r.type)}】${mdEsc(r.note)}\n`; });
+        else md+="- 記録なし\n";
+        md+="\n";
+      });
+    }
+  });
+  return md;
+}
+$("#btnMD").onclick=()=>{
+  const md=buildMarkdown();
+  const blob=new Blob([md],{type:"text/markdown;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="梨畑_知識ベース_"+todayStr()+".md"; a.click(); URL.revokeObjectURL(a.href);
+  toast("Markdownを書き出しました（AI/知識ベース用）");
+};
+
+/* ---------- 農薬・作業ログの取込（CSV / Notion-JSON 両対応） ----------
+   CSVは1行目が見出し。列名は柔軟にマッピング（Notionのエクスポートやエクセルでも可）:
+     対象/畑, 日付/散布日/作業日, 種類, 薬剤/使用薬剤/散布した農薬・肥料, 総量/希釈/総量(L),
+     担当/担当者, 天気, 備考/メモ/作業内容, srcId/_元ID/_タイムスタンプ
+   srcId（または同一内容）で重複判定し、既存は上書き・新規は追加。*/
+$("#btnNotion").onclick=()=>$("#fileNotion").click();
+$("#fileNotion").onchange=e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const text=ev.target.result;
+    const isCSV = /\.csv$/i.test(file.name) || !/^\s*[\[{]/.test(text);
+    let logs=null;
+    try{
+      if(isCSV){ logs=csvToLogs(parseCSV(text)); }
+      else { const data=JSON.parse(text); logs=Array.isArray(data)?data:data.logs; }
+    }catch(err){ logs=null; }
+    if(!Array.isArray(logs) || !logs.length){
+      alert("取り込めるデータが見つかりませんでした。\nCSVは1行目に見出し（対象 / 日付 / 薬剤 / 備考 など）を入れてください。"); e.target.value=""; return;
+    }
+    const res=importLogs(logs);
+    save(); renderFieldTabs(); renderTabs();
+    toast(`${isCSV?"CSV":"JSON"}取込: 新規${res.added}件 / 更新${res.updated}件（全圃場${res.farm}・畑別${res.field}）`);
+    e.target.value="";
+  };
+  r.readAsText(file);
+};
+// CSVパーサ（引用符・カンマ・改行・BOM対応）
+function parseCSV(text){
+  text=text.replace(/^﻿/,"");
+  const rows=[]; let row=[], cur="", inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else inQ=false; }
+      else cur+=c;
+    } else if(c==='"'){ inQ=true; }
+    else if(c===','){ row.push(cur); cur=""; }
+    else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; }
+    else if(c==='\r'){ /* \r\n の\rは無視 */ }
+    else cur+=c;
+  }
+  if(cur!==""||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(c=>(c||"").trim()!==""));
+}
+// 見出し→項目のマッピング
+const COLMAP={
+  field:["対象","畑","圃場","畑名","field"],
+  date:["日付","散布日","作業日","date","年月日"],
+  type:["種類","区分","作業種類","分類","type"],
+  chemical:["薬剤","使用薬剤","薬剤・資材","散布した農薬・肥料","農薬","資材","農薬・肥料","chemical"],
+  amount:["総量","量","総量(l)","希釈","総量/希釈","倍率","総量・希釈","amount"],
+  worker:["担当","担当者","作業者","worker"],
+  weather:["天気","weather"],
+  note:["備考","メモ","内容","作業内容","コメント","note","memo"],
+  srcId:["srcid","_元id","_タイムスタンプ","元id","id","キー"]
+};
+function canonField(h){
+  const k=String(h||"").trim().toLowerCase().replace(/\s/g,"");
+  for(const key in COLMAP){ if(COLMAP[key].some(s=>s.toLowerCase().replace(/\s/g,"")===k)) return key; }
+  return null;
+}
+function csvToLogs(rows){
+  if(!rows.length) return [];
+  const headers=rows[0].map(canonField);
+  if(!headers.includes("date") && !headers.includes("chemical") && !headers.includes("note")) return []; // 見出し無し/不明
+  const logs=[];
+  for(let i=1;i<rows.length;i++){
+    const r=rows[i]; const o={};
+    headers.forEach((key,idx)=>{ if(key) o[key]=(r[idx]||"").trim(); });
+    if(!o.date && !o.chemical && !o.note) continue;
+    const date=(o.date||"").replace(/\//g,"-").replace(/\./g,"-").trim();
+    const chemical=o.chemical||"";
+    const log={
+      field:o.field||"", date, type:o.type || (chemical?"防除":"作業"),
+      chemical, amount:o.amount||"", worker:o.worker||"", weather:o.weather||"", note:o.note||"",
+      src:"csv",
+      srcId:o.srcId || ("csv:"+[o.field||"",date,o.type||"",chemical,o.amount||"",o.note||""].join("|"))
+    };
+    logs.push(log);
+  }
+  return logs;
+}
+function findOrCreateField(name){
+  let f=state.fields.find(x=>x.name===name) || state.fields.find(x=>x.name.replace(/\s/g,"")===String(name).replace(/\s/g,""));
+  if(!f){ f=newField(name); f.photo=null; state.fields.push(f); }
+  return f;
+}
+function importLogs(logs){
+  let added=0, updated=0, farm=0, fieldN=0;
+  logs.forEach(raw=>{
+    const isFarm = raw.scope==="farm" || /全て|全圃場|all/i.test(raw.field||"") || !raw.field;
+    const entry={
+      id: raw.id || ("lg"+Date.now()+Math.random().toString(36).slice(2,7)),
+      date: raw.date||"", type: raw.type||"作業",
+      chemical: raw.chemical||"", amount: raw.amount!=null?String(raw.amount):"",
+      note: raw.note||"", worker: raw.worker||"", weather: raw.weather||"",
+      src: raw.src||"notion", srcId: raw.srcId||raw._元ID||raw._タイムスタンプ||""
+    };
+    const bucket = isFarm ? state.farmLogs : findOrCreateField(raw.field).logs;
+    if(isFarm) farm++; else fieldN++;
+    let ex = entry.srcId ? bucket.find(x=>x.srcId && x.srcId===entry.srcId) : null;
+    if(ex){ Object.assign(ex, entry, {id:ex.id}); updated++; }
+    else { bucket.push(entry); added++; }
+  });
+  return {added, updated, farm, field:fieldN};
+}
+
+/* ---------- init ---------- */
+window.addEventListener("resize",()=>applyView());
+load();
+setMode("move");
+photo.onload=()=>{ applyView(); renderMarkers(); };
+renderFieldTabs();
+renderTabs();
+save();                       // 移行後の畑構造を即保存（畑IDを確定）
+// 旧形式から移行した写真（migrate で field.photo に入っている）があればIDBへ保存
+if(AF() && AF().photo!=null) savePhoto(AF());
+showActiveField();
+</script>
+</body>
+</html>

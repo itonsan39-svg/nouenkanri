@@ -49,8 +49,11 @@
   #fieldBar button:hover{background:rgba(255,255,255,.28)}
   main{flex:1;display:flex;min-height:0}
   /* ---- map ---- */
-  .map-wrap{flex:1;position:relative;overflow:hidden;background:#e9efe6;min-width:0}
-  #stage{position:absolute;inset:0;cursor:grab;}
+  .map-wrap{flex:1;position:relative;overflow:hidden;background:#e9efe6;min-width:0;display:flex;flex-direction:column}
+  #mapToolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;
+    padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);z-index:6;flex-shrink:0}
+  #stage{position:relative;flex:1;min-height:0;overflow:hidden;cursor:grab;touch-action:none}
+  #stage *{touch-action:none}   /* スマホでブラウザの既定ジェスチャ（スクロール/ズーム）を無効化し、操作を安定させる */
   #stage.placing{cursor:crosshair}
   #stage.dragging{cursor:grabbing}
   #canvas{position:absolute;transform-origin:0 0;}
@@ -75,18 +78,18 @@
   .marker.sel{outline:3px solid #ffd24a;outline-offset:1px;z-index:5}
   .marker .lbl{position:absolute;top:-16px;font-size:10px;background:rgba(0,0,0,.55);color:#fff;
     padding:0 4px;border-radius:4px;white-space:nowrap;pointer-events:none}
-  /* map toolbar */
-  .map-tools{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:8px;z-index:6}
+  /* map toolbar（地図上部・地図に重ならない） */
+  .map-tools{display:flex;flex-direction:row;gap:8px;flex-wrap:wrap}
   .map-tools .tbtn{
-    background:var(--panel);border:1px solid var(--line);border-radius:8px;width:auto;padding:8px 12px;
-    font-size:13px;cursor:pointer;box-shadow:var(--shadow);display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ink)
+    background:var(--bg);border:1px solid var(--line);border-radius:8px;width:auto;padding:7px 12px;
+    font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ink)
   }
   .map-tools .tbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   .zoom-tools{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;gap:6px;z-index:6}
   .zoom-tools button{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
     font-size:18px;cursor:pointer;box-shadow:var(--shadow);color:var(--ink)}
-  .legend{position:absolute;right:12px;top:12px;background:var(--panel);border:1px solid var(--line);
-    border-radius:8px;padding:8px 10px;font-size:11px;box-shadow:var(--shadow);z-index:6;line-height:1.7}
+  .legend{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--muted)}
+  .legend b{color:var(--ink);font-size:11px}
   .legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
   /* ---- side panel ---- */
   aside{width:340px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
@@ -204,24 +207,26 @@
 
 <main>
   <div class="map-wrap">
-    <div class="map-tools">
-      <button class="tbtn" id="toolPlace">➕ 木を配置</button>
-      <button class="tbtn" id="toolLine">📏 ジョイント線</button>
-      <button class="tbtn" id="toolMove">✋ 移動/閲覧</button>
-    </div>
-    <div class="legend">
-      <div><b>作業からの経過</b></div>
-      <div><i style="background:#2f7d4f"></i>7日以内</div>
-      <div><i style="background:#c9a52a"></i>30日以内</div>
-      <div><i style="background:#c0432f"></i>30日超</div>
-      <div><i style="background:#9aa39b"></i>記録なし</div>
-    </div>
-    <div class="zoom-tools">
-      <button id="zoomIn">＋</button>
-      <button id="zoomOut">－</button>
-      <button id="zoomFit" title="全体表示">⤢</button>
+    <div id="mapToolbar">
+      <div class="map-tools">
+        <button class="tbtn" id="toolPlace">➕ 木を配置</button>
+        <button class="tbtn" id="toolLine">📏 ジョイント線</button>
+        <button class="tbtn" id="toolMove">✋ 移動/閲覧</button>
+      </div>
+      <div class="legend">
+        <b>作業からの経過</b>
+        <div><i style="background:#2f7d4f"></i>7日以内</div>
+        <div><i style="background:#c9a52a"></i>30日以内</div>
+        <div><i style="background:#c0432f"></i>30日超</div>
+        <div><i style="background:#9aa39b"></i>記録なし</div>
+      </div>
     </div>
     <div id="stage">
+      <div class="zoom-tools">
+        <button id="zoomIn">＋</button>
+        <button id="zoomOut">－</button>
+        <button id="zoomFit" title="全体表示">⤢</button>
+      </div>
       <div id="canvas">
         <img id="photo" alt="">
         <svg id="lineLayer" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -242,7 +247,7 @@
     <div class="tabs">
       <button data-tab="tree" class="active">木の詳細</button>
       <button data-tab="list">一覧（列）</button>
-      <button data-tab="log">作業ログ</button>
+      <button data-tab="log">作業・農薬</button>
     </div>
     <div class="panel-body" id="tabTree">
       <div class="empty" id="treeEmpty">
@@ -447,25 +452,49 @@ stage.addEventListener("wheel",e=>{
   zoomAt(e.deltaY<0?1.12:0.89, e.clientX-r.left, e.clientY-r.top);
 },{passive:false});
 
-/* pan + place + line via pointer */
+/* pan + place + line + ピンチズーム（スマホ対応）via pointer */
 let panning=false, moved=false, sx,sy, startTx,startTy;
 let dragTree=null;
 let drawing=null;           // {x1,y1,x2,y2} ジョイント線を描画中
 let dragEnd=null;           // {line, which:1|2} 端点ドラッグ中
+let placePending=false;     // 木を配置（タップ）の候補
+const pointers=new Map();   // 触れている指（pointerId -> {x,y}）
+let pinch=null, pinchMoved=false;   // 2本指ピンチ
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
 stage.addEventListener("pointerdown",e=>{
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size>=2){                 // 2本目 → ピンチ開始（単一操作は取り消し）
+    panning=false; placePending=false; drawing=null; dragTree=null; stage.classList.remove("dragging");
+    const p=[...pointers.values()];
+    pinch={ d:dist(p[0],p[1])||1, scale:AF().view.scale }; pinchMoved=false;
+    return;
+  }
   if(e.target.closest(".marker")) return;       // marker handles its own
   if(e.target.closest(".ln-end")) return;       // endpoint handle handles its own
-  if(mode==="place" && AF().photo){ addTreeAt(e); return; }
   if(mode==="line" && AF().photo){               // 線の描画開始
     const p=clientToImg(e); drawing={x1:p.x,y1:p.y,x2:p.x,y2:p.y};
-    stage.setPointerCapture(e.pointerId); renderLines(); return;
+    try{stage.setPointerCapture(e.pointerId)}catch(_){} renderLines(); return;
   }
-  if(e.target.closest(".ln-hit")) return;        // クリックで線選択（描画モード以外）
+  if(e.target.closest(".ln-hit") && mode!=="place") return;  // 線選択は線側で処理
+  // ドラッグ＝パン、タップ＝（配置モードなら）木を置く
   panning=true; moved=false; sx=e.clientX; sy=e.clientY;
   startTx=AF().view.tx; startTy=AF().view.ty;
-  stage.classList.add("dragging"); stage.setPointerCapture(e.pointerId);
+  placePending = (mode==="place" && !!AF().photo);
+  stage.classList.add("dragging"); try{stage.setPointerCapture(e.pointerId)}catch(_){}
 });
 stage.addEventListener("pointermove",e=>{
+  if(pointers.has(e.pointerId)) pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch && pointers.size>=2){        // ピンチズーム
+    const p=[...pointers.values()]; const nd=dist(p[0],p[1])||1;
+    const r=stage.getBoundingClientRect();
+    const cx=(p[0].x+p[1].x)/2 - r.left, cy=(p[0].y+p[1].y)/2 - r.top;
+    const v=AF().view;
+    const target=Math.min(Math.max(pinch.scale*(nd/pinch.d),0.05),12);
+    v.tx = cx-(cx-v.tx)*(target/v.scale);
+    v.ty = cy-(cy-v.ty)*(target/v.scale);
+    v.scale=target; applyView(); pinchMoved=true; return;
+  }
   if(dragEnd){ const p=clientToImg(e);
     if(dragEnd.which===1){ dragEnd.line.x1=p.x; dragEnd.line.y1=p.y; }
     else { dragEnd.line.x2=p.x; dragEnd.line.y2=p.y; } renderLines(); return; }
@@ -473,14 +502,23 @@ stage.addEventListener("pointermove",e=>{
   if(dragTree){ moveTreeTo(dragTree,e); return; }
   if(!panning) return;
   const dx=e.clientX-sx, dy=e.clientY-sy;
-  if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
+  if(Math.abs(dx)+Math.abs(dy)>4){ moved=true; placePending=false; }   // 動いたらパン扱い
   AF().view.tx=startTx+dx; AF().view.ty=startTy+dy; applyView();
 });
+function endPointer(e){ pointers.delete(e.pointerId); if(pointers.size<2){ if(pinchMoved) save(); pinch=null; pinchMoved=false; } }
 stage.addEventListener("pointerup",e=>{
+  endPointer(e);
   if(dragEnd){ dragEnd=null; save(); renderLines(); }
-  if(drawing){ finishDrawLine(); drawing=null; return; }
+  if(drawing){ finishDrawLine(); drawing=null; placePending=false; return; }
+  if(placePending && !moved){ addTreeAt(e); }    // タップ＝配置
   if(panning){ panning=false; stage.classList.remove("dragging"); if(moved) save(); }
   if(dragTree){ dragTree=null; save(); }
+  placePending=false;
+});
+stage.addEventListener("pointercancel",e=>{
+  endPointer(e);
+  panning=false; placePending=false; drawing=null; dragTree=null; dragEnd=null;
+  stage.classList.remove("dragging");
 });
 
 /* convert client coords -> image natural coords (px) */
@@ -514,14 +552,15 @@ function lastRow(){
 }
 function addTreeAt(e){
   const p=clientToImg(e);
-  const row = prompt("列名を入力（例: A, B, 1列目）", lastRow()||"A");
-  if(row===null) return;
-  const num = prompt("番号を入力", String(nextNumInRow(row)));
-  if(num===null) return;
+  // 画像の範囲内に収める（はみ出し防止）
+  if(photo.naturalWidth){ p.x=Math.max(0,Math.min(photo.naturalWidth,p.x)); p.y=Math.max(0,Math.min(photo.naturalHeight,p.y)); }
+  // タップで即配置（列・番号は自動採番→詳細パネルで編集可）。スマホで不安定なダイアログは使わない。
+  const row=lastRow()||"A";
   const t={ id:"t"+Date.now()+Math.random().toString(36).slice(2,6),
-            row:row.trim()||"A", num:(num.trim()||String(nextNumInRow(row))),
+            row, num:String(nextNumInRow(row)),
             variety:"", x:p.x, y:p.y, records:[] };
   AF().trees.push(t); save(); selectedId=t.id; selectedType="tree"; renderMarkers(); renderPanel(); openSheetIfMobile();
+  toast(`木を追加: ${row}列 ${t.num}番（詳細で列・番号を変更できます）`);
 }
 function moveTreeTo(t,e){ const p=clientToImg(e); t.x=p.x; t.y=p.y; renderMarkers(); }
 
@@ -561,14 +600,15 @@ function nextLabel(){
 function finishDrawLine(){
   const l=drawing;
   if(!l || lineLen(l) < 8){ renderLines(); return; }   // 短すぎる線は無視
-  const row = prompt("ジョイント列の名前（例: ジョイントA, 東1列）", "ジョイント"+(AF().lines.length+1));
-  if(row===null){ renderLines(); return; }
+  // 即登録（名前は自動→詳細パネルで編集可）。ダイアログは使わない。
+  const row="ジョイント"+(AF().lines.length+1);
   const line={ id:"L"+Date.now()+Math.random().toString(36).slice(2,6),
-    row:row.trim()||("ジョイント"+(AF().lines.length+1)), label:nextLabel(),
+    row, label:nextLabel(),
     variety:"", x1:l.x1, y1:l.y1, x2:l.x2, y2:l.y2, records:[] };
   AF().lines.push(line); save();
   selectedId=line.id; selectedType="line"; activeTab="tree";
   renderTabs(); renderLines(); renderPanel(); openSheetIfMobile();
+  toast(`ジョイント線を追加: ${row}（詳細で名前を変更できます）`);
 }
 function renderLines(){
   if(!lineLayer) return;
@@ -830,66 +870,72 @@ function mergedLogs(){   // この畑のログ + 全圃場ログ を結合
   const farm=(state.farmLogs||[]).map(l=>({...l, _scope:"farm"}));
   return own.concat(farm).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
 }
+function isPesticide(l){ return !!(l.chemical && l.chemical.trim()); }
 function renderLog(){
   const box=$("#tabLog");
   const logs=mergedLogs();
+  const pest=logs.filter(isPesticide);            // 農薬・資材（畑ごとの散布履歴）
+  const work=logs.filter(l=>!isPesticide(l));     // 作業内容
   box.innerHTML="";
+  const scopeTag=l=>`<span style="font-size:10px;font-weight:600;color:#fff;background:${l._scope==="farm"?"#6b7a6e":"var(--accent)"};border-radius:8px;padding:1px 6px">${l._scope==="farm"?"全圃場":"この畑"}</span>`;
   box.appendChild(el(`
     <div>
-      <p class="sec-title">作業ログを追加（${escapeHtml(AF().name)}）</p>
-      <div class="row2">
-        <div class="field"><label>日付</label><input type="date" id="lgDate" value="${todayStr()}"></div>
-        <div class="field"><label>種類</label><input id="lgType" value="防除" list="lgTypeList"></div>
-      </div>
-      <datalist id="lgTypeList">${LOG_TYPES.map(t=>`<option value="${t}">`).join("")}</datalist>
-      <div class="row2">
-        <div class="field"><label>薬剤・資材</label><input id="lgChem" placeholder="例: ICボルドー"></div>
-        <div class="field"><label>総量/希釈</label><input id="lgAmt" placeholder="例: 500L / 1000倍"></div>
-      </div>
-      <div class="field"><label>内容・備考</label><textarea id="lgNote" placeholder="作業内容や気づき"></textarea></div>
-      <div class="row2">
-        <div class="field"><label>担当者</label><input id="lgWorker" placeholder="任意"></div>
-        <div class="field"><label>対象</label>
-          <select id="lgScope"><option value="field">この畑のみ</option><option value="farm">全ての畑</option></select></div>
-      </div>
-      <div class="btn-row"><button class="pbtn" id="lgAdd">＋ ログを記録</button></div>
+      <p class="sec-title">作業を記録（${escapeHtml(AF().name)}）</p>
+      <div class="field"><label>日付</label><input type="date" id="lgDate" value="${todayStr()}"></div>
+      <div class="field"><label>作業内容</label><textarea id="lgNote" placeholder="例: 摘果。上向き果を中心に1果に。"></textarea></div>
+      <div class="field"><label>対象</label>
+        <select id="lgScope"><option value="field">この畑のみ</option><option value="farm">全ての畑</option></select></div>
+      <div class="btn-row"><button class="pbtn" id="lgAdd">＋ 作業を記録</button></div>
       <hr>
-      <p class="sec-title">履歴（${logs.length}件）<span style="font-weight:400;color:var(--muted)">／この畑＋全圃場</span></p>
-      <div id="lgList"></div>
+      <p class="sec-title">🧪 農薬散布履歴（${pest.length}件）<span style="font-weight:400;color:var(--muted)">／畑ごと</span></p>
+      <div id="pestList"></div>
+      <hr>
+      <p class="sec-title">📝 作業ログ（${work.length}件）</p>
+      <div id="workList"></div>
     </div>
   `));
-  const list=box.querySelector("#lgList");
-  if(!logs.length) list.innerHTML=`<div class="empty" style="padding:14px">まだログがありません。<br>上で記録するか、ヘッダーの「🔗 Notion取込」で取り込めます。</div>`;
-  logs.forEach(l=>{
+  function delLog(l){
+    if(l._scope==="farm") state.farmLogs=state.farmLogs.filter(x=>x.id!==l.id);
+    else AF().logs=AF().logs.filter(x=>x.id!==l.id);
+    save(); renderFieldTabs(); renderLog();
+  }
+  // 農薬散布履歴（畑ごと・取込データ中心）
+  const pl=box.querySelector("#pestList");
+  if(!pest.length) pl.innerHTML=`<div class="empty" style="padding:12px">農薬の記録はまだありません。<br>ヘッダーの「📥 ログ取込(CSV)」で取り込めます。</div>`;
+  pest.forEach(l=>{
     const amt=l.amount?` ・ ${escapeHtml(l.amount)}`:"";
-    const chem=l.chemical?`<div class="note">💊 ${escapeHtml(l.chemical)}${amt}</div>`:"";
-    const extra=[l.worker?("👤"+l.worker):"", l.weather?("☁"+l.weather):""].filter(Boolean).join("　");
     const item=el(`<div class="log">
       <div class="top">
-        <span class="type">${escapeHtml(l.type||"作業")} <span style="font-size:10px;font-weight:600;color:#fff;background:${l._scope==="farm"?"#6b7a6e":"var(--accent)"};border-radius:8px;padding:1px 6px">${l._scope==="farm"?"全圃場":"この畑"}</span></span>
-        <span><span class="date">${l.date||""}</span> ${l.src==="notion"?'<span style="font-size:10px;color:#888">⟳Notion</span>':""} <button class="del">削除</button></span>
+        <span class="type">${escapeHtml(l.type||"防除")} ${scopeTag(l)}</span>
+        <span><span class="date">${l.date||""}</span> <button class="del">削除</button></span>
       </div>
-      ${chem}
+      <div class="note">💊 ${escapeHtml(l.chemical)}${amt}</div>
       ${l.note?`<div class="note">${escapeHtml(l.note)}</div>`:""}
-      ${extra?`<div class="note" style="color:var(--muted);font-size:11px">${extra}</div>`:""}
     </div>`);
-    item.querySelector(".del").onclick=()=>{
-      if(l._scope==="farm") state.farmLogs=state.farmLogs.filter(x=>x.id!==l.id);
-      else AF().logs=AF().logs.filter(x=>x.id!==l.id);
-      save(); renderFieldTabs(); renderLog();
-    };
-    list.appendChild(item);
+    item.querySelector(".del").onclick=()=>delLog(l);
+    pl.appendChild(item);
   });
-  // add handler
+  // 作業ログ（作業内容）
+  const wl=box.querySelector("#workList");
+  if(!work.length) wl.innerHTML=`<div class="empty" style="padding:12px">作業ログはまだありません。上で記録できます。</div>`;
+  work.forEach(l=>{
+    const item=el(`<div class="log">
+      <div class="top">
+        <span class="type">作業 ${scopeTag(l)}</span>
+        <span><span class="date">${l.date||""}</span> <button class="del">削除</button></span>
+      </div>
+      ${l.note?`<div class="note">${escapeHtml(l.note)}</div>`:`<div class="note" style="color:var(--muted)">（内容なし）</div>`}
+    </div>`);
+    item.querySelector(".del").onclick=()=>delLog(l);
+    wl.appendChild(item);
+  });
+  // 作業を記録（作業内容のみ）
   box.querySelector("#lgAdd").onclick=()=>{
+    const note=box.querySelector("#lgNote").value.trim();
+    if(!note){ alert("作業内容を入力してください"); return; }
     const entry={ id:"lg"+Date.now()+Math.random().toString(36).slice(2,5),
       date: box.querySelector("#lgDate").value||todayStr(),
-      type: box.querySelector("#lgType").value.trim()||"作業",
-      chemical: box.querySelector("#lgChem").value.trim(),
-      amount: box.querySelector("#lgAmt").value.trim(),
-      note: box.querySelector("#lgNote").value.trim(),
-      worker: box.querySelector("#lgWorker").value.trim(),
-      src:"manual" };
+      type:"作業", chemical:"", amount:"", note, worker:"", src:"manual" };
     if(box.querySelector("#lgScope").value==="farm") state.farmLogs.push(entry);
     else AF().logs.push(entry);
     save(); renderFieldTabs(); renderLog();
